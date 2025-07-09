@@ -467,7 +467,7 @@ class ArticleSummarizer:
     
     def analyze_sentiment(self, text: str) -> Dict[str, Any]:
         """
-        Analyze sentiment of text using RoBERTa model
+        Analyze sentiment of text using RoBERTa model with fallback to rule-based analysis
         
         Args:
             text: Text to analyze
@@ -476,72 +476,88 @@ class ArticleSummarizer:
             Dictionary with sentiment analysis results
         """
         try:
-            # Lazy load the sentiment analyzer
-            if not self._load_sentiment_analyzer():
-                logger.error("Sentiment analyzer not available")
-                return {
-                    "label": "neutral",
-                    "score": 0.0,
-                    "confidence": 0.0
-                }
+            # Try to use the transformer model first
+            if self._load_sentiment_analyzer():
+                # Truncate text if too long
+                max_input_length = 512  # DistilBERT's max input length
+                if len(text.split()) > max_input_length:
+                    text = ' '.join(text.split()[:max_input_length])
+                    logger.info(f"Truncated input text to {max_input_length} words for sentiment analysis")
+                
+                logger.info(f"Analyzing sentiment of text with {len(text)} characters using transformer model...")
+                
+                # Analyze sentiment
+                result = self.sentiment_analyzer(text)
+                
+                if result and len(result) > 0:
+                    sentiment_result = result[0]
+                    
+                    # Map the model's labels to our expected format
+                    label_mapping = {
+                        'NEGATIVE': 'negative',
+                        'POSITIVE': 'positive',
+                        # Fallback mappings for other potential label formats
+                        'LABEL_0': 'negative',  # Some models use LABEL_0 for negative
+                        'LABEL_1': 'positive',  # Some models use LABEL_1 for positive
+                        'NEUTRAL': 'neutral'
+                    }
+                    
+                    original_label = sentiment_result['label']
+                    mapped_label = label_mapping.get(original_label, 'neutral')
+                    confidence = sentiment_result['score']
+                    
+                    # Convert confidence to sentiment score (-1 to 1)
+                    if mapped_label == 'positive':
+                        score = confidence
+                    elif mapped_label == 'negative':
+                        score = -confidence
+                    else:  # neutral
+                        score = 0.0
+                    
+                    logger.info(f"Transformer sentiment analysis result: {mapped_label} (confidence: {confidence:.3f})")
+                    
+                    return {
+                        "label": mapped_label,
+                        "score": round(score, 3),
+                        "confidence": round(confidence, 3)
+                    }
             
-            # Truncate text if too long
-            max_input_length = 512  # DistilBERT's max input length
-            if len(text.split()) > max_input_length:
-                text = ' '.join(text.split()[:max_input_length])
-                logger.info(f"Truncated input text to {max_input_length} words for sentiment analysis")
-            
-            logger.info(f"Analyzing sentiment of text with {len(text)} characters...")
-            
-            # Analyze sentiment
-            result = self.sentiment_analyzer(text)
-            
-            if result and len(result) > 0:
-                sentiment_result = result[0]
-                
-                # Map the model's labels to our expected format
-                label_mapping = {
-                    'NEGATIVE': 'negative',
-                    'POSITIVE': 'positive',
-                    # Fallback mappings for other potential label formats
-                    'LABEL_0': 'negative',  # Some models use LABEL_0 for negative
-                    'LABEL_1': 'positive',  # Some models use LABEL_1 for positive
-                    'NEUTRAL': 'neutral'
-                }
-                
-                original_label = sentiment_result['label']
-                mapped_label = label_mapping.get(original_label, 'neutral')
-                confidence = sentiment_result['score']
-                
-                # Convert confidence to sentiment score (-1 to 1)
-                if mapped_label == 'positive':
-                    score = confidence
-                elif mapped_label == 'negative':
-                    score = -confidence
-                else:  # neutral
-                    score = 0.0
-                
-                logger.info(f"Sentiment analysis result: {mapped_label} (confidence: {confidence:.3f})")
-                
-                return {
-                    "label": mapped_label,
-                    "score": score,
-                    "confidence": confidence
-                }
-            else:
-                logger.warning("No sentiment analysis result")
-                return {
-                    "label": "neutral",
-                    "score": 0.0,
-                    "confidence": 0.0
-                }
+            # Fallback to rule-based sentiment analysis
+            logger.info("Using fallback rule-based sentiment analysis...")
+            return self._rule_based_sentiment_analysis(text)
                 
         except Exception as e:
-            logger.error(f"Error analyzing sentiment: {e}")
+            logger.error(f"Error analyzing sentiment with transformer model: {e}")
+            logger.info("Falling back to rule-based sentiment analysis...")
+            return self._rule_based_sentiment_analysis(text)
+    
+    def _rule_based_sentiment_analysis(self, text: str) -> Dict[str, Any]:
+        """
+        Fallback rule-based sentiment analysis
+        
+        Args:
+            text: Text to analyze
+            
+        Returns:
+            Dictionary with sentiment analysis results
+        """
+        try:
+            # Import the enhanced sentiment analysis from app.py
+            import sys
+            import os
+            sys.path.append(os.path.dirname(__file__))
+            from app import analyze_sentiment
+            
+            result = analyze_sentiment(text)
+            logger.info(f"Rule-based sentiment analysis result: {result}")
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error in rule-based sentiment analysis: {e}")
             return {
                 "label": "neutral",
                 "score": 0.0,
-                "confidence": 0.0
+                "confidence": 0.1
             }
     
     def summarize_article_from_url(self, url: str) -> Dict[str, Any]:

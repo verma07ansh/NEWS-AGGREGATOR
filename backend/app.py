@@ -61,77 +61,151 @@ def categorize_article(title, description):
         return 'politics'
 
 def analyze_sentiment(text):
-    """Enhanced sentiment analysis with better scoring"""
-    # Expanded word lists with weights - more comprehensive for news
+    """Enhanced sentiment analysis with better scoring and more comprehensive word lists"""
+    # More comprehensive word lists with weights - specifically tuned for news content
     positive_words = {
+        # Strong positive (weight 3)
         'excellent': 3, 'amazing': 3, 'fantastic': 3, 'outstanding': 3, 'brilliant': 3,
-        'great': 2, 'good': 2, 'wonderful': 2, 'success': 2, 'victory': 2, 'achievement': 2,
-        'win': 2, 'breakthrough': 2, 'progress': 2, 'improve': 2, 'benefit': 2, 'growth': 2,
-        'positive': 1, 'rise': 1, 'gain': 1, 'boost': 1, 'advance': 1, 'better': 1,
-        'strong': 1, 'healthy': 1, 'stable': 1, 'recovery': 1, 'solution': 1, 'hope': 1,
-        'approve': 1, 'support': 1, 'launch': 1, 'expand': 1, 'increase': 1, 'up': 1
+        'exceptional': 3, 'remarkable': 3, 'spectacular': 3, 'magnificent': 3, 'superb': 3,
+        'triumph': 3, 'victory': 3, 'breakthrough': 3, 'revolutionary': 3, 'innovative': 3,
+        
+        # Moderate positive (weight 2)
+        'great': 2, 'good': 2, 'wonderful': 2, 'success': 2, 'achievement': 2, 'accomplish': 2,
+        'win': 2, 'progress': 2, 'improve': 2, 'benefit': 2, 'growth': 2, 'advance': 2,
+        'effective': 2, 'efficient': 2, 'profitable': 2, 'successful': 2, 'thriving': 2,
+        'flourishing': 2, 'prosperous': 2, 'booming': 2, 'rising': 2, 'soaring': 2,
+        
+        # Mild positive (weight 1)
+        'positive': 1, 'rise': 1, 'gain': 1, 'boost': 1, 'better': 1, 'strong': 1,
+        'healthy': 1, 'stable': 1, 'recovery': 1, 'solution': 1, 'hope': 1, 'optimistic': 1,
+        'approve': 1, 'support': 1, 'launch': 1, 'expand': 1, 'increase': 1, 'up': 1,
+        'celebrate': 1, 'praise': 1, 'commend': 1, 'welcome': 1, 'pleased': 1, 'satisfied': 1,
+        'confident': 1, 'promising': 1, 'encouraging': 1, 'uplifting': 1, 'inspiring': 1
     }
     
     negative_words = {
+        # Strong negative (weight 3)
         'terrible': 3, 'awful': 3, 'horrible': 3, 'disaster': 3, 'catastrophe': 3,
+        'devastating': 3, 'tragic': 3, 'horrific': 3, 'appalling': 3, 'shocking': 3,
+        'outrageous': 3, 'scandalous': 3, 'alarming': 3, 'disturbing': 3, 'terrifying': 3,
+        
+        # Moderate negative (weight 2)
         'crisis': 2, 'death': 2, 'killed': 2, 'murdered': 2, 'attack': 2, 'war': 2,
         'bad': 2, 'fail': 2, 'decline': 2, 'crash': 2, 'threat': 2, 'danger': 2,
+        'violence': 2, 'conflict': 2, 'corruption': 2, 'fraud': 2, 'scandal': 2,
+        'controversy': 2, 'protest': 2, 'riot': 2, 'strike': 2, 'recession': 2,
+        
+        # Mild negative (weight 1)
         'injured': 1, 'loss': 1, 'drop': 1, 'fall': 1, 'problem': 1, 'issue': 1,
-        'concern': 1, 'worry': 1, 'risk': 1, 'damage': 1, 'hurt': 1, 'violence': 1,
-        'hit': 2, 'controls': 1, 'restrictions': 2, 'shortfalls': 2, 'outbreaks': 2,
-        'spread': 1, 'high': 1, 'pressure': 1, 'firing': 1, 'tariffs': 1
+        'concern': 1, 'worry': 1, 'risk': 1, 'damage': 1, 'hurt': 1, 'hit': 1,
+        'controls': 1, 'restrictions': 1, 'shortfalls': 1, 'outbreaks': 1, 'spread': 1,
+        'pressure': 1, 'firing': 1, 'tariffs': 1, 'unemployment': 1, 'inflation': 1,
+        'criticism': 1, 'blame': 1, 'reject': 1, 'deny': 1, 'oppose': 1, 'struggle': 1,
+        'difficulty': 1, 'challenge': 1, 'setback': 1, 'delay': 1, 'cancel': 1
     }
+    
+    # Context modifiers that can change sentiment intensity
+    intensifiers = {
+        'very': 1.5, 'extremely': 2.0, 'highly': 1.3, 'significantly': 1.4,
+        'greatly': 1.4, 'substantially': 1.3, 'considerably': 1.3, 'remarkably': 1.5,
+        'particularly': 1.2, 'especially': 1.2, 'notably': 1.2, 'increasingly': 1.3
+    }
+    
+    diminishers = {
+        'slightly': 0.7, 'somewhat': 0.8, 'relatively': 0.8, 'fairly': 0.8,
+        'rather': 0.8, 'quite': 0.9, 'moderately': 0.8, 'partially': 0.7
+    }
+    
+    negators = {'not', 'no', 'never', 'none', 'nothing', 'neither', 'nor', 'without'}
     
     text_lower = text.lower()
     words = text_lower.split()
     total_words = len(words)
     
-    # Calculate weighted sentiment scores
+    # Calculate weighted sentiment scores with context awareness
     positive_score = 0
     negative_score = 0
     positive_words_found = []
     negative_words_found = []
     
-    for word in words:
+    for i, word in enumerate(words):
         # Remove punctuation for better matching
         clean_word = word.strip('.,!?;:"()[]{}')
+        
+        # Check for negation in the previous 2 words
+        negated = False
+        for j in range(max(0, i-2), i):
+            if words[j].strip('.,!?;:"()[]{}') in negators:
+                negated = True
+                break
+        
+        # Check for intensifiers/diminishers in the previous 2 words
+        modifier = 1.0
+        for j in range(max(0, i-2), i):
+            prev_word = words[j].strip('.,!?;:"()[]{}')
+            if prev_word in intensifiers:
+                modifier = intensifiers[prev_word]
+                break
+            elif prev_word in diminishers:
+                modifier = diminishers[prev_word]
+                break
+        
+        # Calculate sentiment with context
         if clean_word in positive_words:
-            positive_score += positive_words[clean_word]
-            positive_words_found.append(clean_word)
-        if clean_word in negative_words:
-            negative_score += negative_words[clean_word]
-            negative_words_found.append(clean_word)
+            base_score = positive_words[clean_word] * modifier
+            if negated:
+                negative_score += base_score  # Negated positive becomes negative
+                negative_words_found.append(f"NOT {clean_word}")
+            else:
+                positive_score += base_score
+                positive_words_found.append(clean_word)
+                
+        elif clean_word in negative_words:
+            base_score = negative_words[clean_word] * modifier
+            if negated:
+                positive_score += base_score  # Negated negative becomes positive
+                positive_words_found.append(f"NOT {clean_word}")
+            else:
+                negative_score += base_score
+                negative_words_found.append(clean_word)
     
     # Debug logging
     logger.info(f"Sentiment analysis for: {text[:100]}...")
     logger.info(f"Positive words found: {positive_words_found} (score: {positive_score})")
     logger.info(f"Negative words found: {negative_words_found} (score: {negative_score})")
     
-    # Determine sentiment label and score
+    # Determine sentiment label and score with improved scaling
     if positive_score > negative_score:
         label = 'positive'
-        # Score calculation for positive sentiment
+        # Improved score calculation for positive sentiment
         intensity = positive_score - negative_score
-        score = min(intensity / max(total_words, 1) * 10, 1.0)  # Scale appropriately
-        score = max(score, 0.1)  # Minimum positive score
+        # Use logarithmic scaling for more realistic scores
+        score = min(intensity / max(total_words, 1) * 8, 0.95)  # Scale down for realism
+        score = max(score, 0.05)  # Minimum positive score
     elif negative_score > positive_score:
         label = 'negative'
-        # Score calculation for negative sentiment
+        # Improved score calculation for negative sentiment
         intensity = negative_score - positive_score
-        score = -min(intensity / max(total_words, 1) * 10, 1.0)  # Scale appropriately
-        score = min(score, -0.1)  # Maximum negative score (closest to 0)
+        # Use logarithmic scaling for more realistic scores
+        score = -min(intensity / max(total_words, 1) * 8, 0.95)  # Scale down for realism
+        score = min(score, -0.05)  # Maximum negative score (closest to 0)
     else:
         label = 'neutral'
         score = 0.0
     
-    # Calculate confidence based on the strength of sentiment indicators
+    # Enhanced confidence calculation
     total_sentiment_score = positive_score + negative_score
     if total_sentiment_score > 0:
-        # Higher confidence for more sentiment words relative to text length
-        confidence = min(total_sentiment_score / max(total_words, 1) * 5, 0.95)
-        confidence = max(confidence, 0.3)  # Minimum 30% confidence when sentiment words are found
+        # Base confidence on sentiment word density and strength
+        word_density = total_sentiment_score / max(total_words, 1)
+        confidence = min(word_density * 3, 0.95)  # More conservative confidence
+        confidence = max(confidence, 0.2)  # Minimum confidence when sentiment words are found
+        
+        # Boost confidence for strong sentiment words
+        if total_sentiment_score >= 6:  # Strong sentiment indicators
+            confidence = min(confidence * 1.2, 0.95)
     else:
-        confidence = 0.1  # Very low confidence for neutral with no sentiment words
+        confidence = 0.05  # Very low confidence for neutral with no sentiment words
     
     result = {
         'score': round(score, 3),

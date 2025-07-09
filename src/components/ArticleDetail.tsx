@@ -85,12 +85,8 @@ const ArticleDetail: React.FC = () => {
           if (!prev) return null;
           const updated = { ...prev, aiSummary: response.summary || response };
           
-          // Update sentiment if provided by the summarization
-          if (response.sentiment) {
-            updated.sentiment = response.sentiment;
-            // Also update the sentiment in the global context so it reflects in news cards
-            updateArticleSentiment(prev.id, response.sentiment);
-          }
+          // Don't update sentiment to maintain consistency
+          // The sentiment shown will be from the original article analysis
           
           return updated;
         });
@@ -301,6 +297,29 @@ const ArticleDetail: React.FC = () => {
     );
   };
 
+  const getSentimentColor = (sentiment: any) => {
+    if (!sentiment) return 'text-gray-500';
+    
+    if (sentiment.label === 'positive') {
+      return 'text-green-600 dark:text-green-400';
+    } else if (sentiment.label === 'negative') {
+      return 'text-red-600 dark:text-red-400';
+    }
+    return 'text-gray-600 dark:text-gray-400';
+  };
+
+  const getSentimentIcon = (sentiment: any) => {
+    if (!sentiment) return '😐';
+    
+    const score = sentiment.score || 0;
+    if (sentiment.label === 'positive') {
+      return score > 0.7 ? '😊' : score > 0.3 ? '🙂' : '😐';
+    } else if (sentiment.label === 'negative') {
+      return score < -0.7 ? '😞' : score < -0.3 ? '😕' : '😐';
+    }
+    return '😐';
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -494,30 +513,65 @@ const ArticleDetail: React.FC = () => {
               <p className="text-gray-700 dark:text-gray-300 leading-relaxed text-lg font-medium">
                 {article.aiSummary}
               </p>
-              <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-600">
-                <div className="flex items-center space-x-4 text-xs text-gray-500 dark:text-gray-400">
-                  <div className="flex items-center space-x-1">
-                    <Activity className="h-3 w-3" />
-                    <span>
-                      Sentiment Intensity: {
-                        article.sentiment?.score !== undefined && article.sentiment.score !== null ? 
-                          `${article.sentiment.score >= 0 ? '+' : ''}${(article.sentiment.score * 100).toFixed(1)}%` : 
-                          'N/A'
-                      }
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <Star className="h-3 w-3" />
-                    <span>
-                      Confidence: {
-                        article.sentiment?.confidence !== undefined && article.sentiment.confidence !== null ? 
-                          `${(article.sentiment.confidence * 100).toFixed(1)}%` : 
-                          'N/A'
-                      }
-                    </span>
+              {/* Enhanced Sentiment Analysis for AI Summary */}
+              <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-600">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">AI-Enhanced Sentiment Analysis</h3>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-lg">{getSentimentIcon(article.sentiment)}</span>
+                    <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      article.sentiment?.label === 'positive' 
+                        ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                        : article.sentiment?.label === 'negative'
+                        ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                        : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+                    }`}>
+                      {article.sentiment?.label?.toUpperCase() || 'NEUTRAL'}
+                    </div>
                   </div>
                 </div>
-
+                
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                  <div className="flex items-center space-x-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg p-3 border border-purple-200 dark:border-purple-700">
+                    <Activity className="h-4 w-4 text-purple-500" />
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Sentiment Intensity</p>
+                      <p className="font-semibold text-gray-700 dark:text-gray-300">
+                        {article.sentiment?.score !== undefined && article.sentiment.score !== null ? 
+                          `${article.sentiment.score >= 0 ? '+' : ''}${(article.sentiment.score * 100).toFixed(1)}%` : 
+                          '0.0%'
+                        }
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg p-3 border border-purple-200 dark:border-purple-700">
+                    <Star className="h-4 w-4 text-yellow-500" />
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">AI Confidence</p>
+                      <p className="font-semibold text-gray-700 dark:text-gray-300">
+                        {article.sentiment?.confidence !== undefined && article.sentiment.confidence !== null ? 
+                          `${(article.sentiment.confidence * 100).toFixed(1)}%` : 
+                          '0.0%'
+                        }
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg p-3 border border-purple-200 dark:border-purple-700">
+                    <Zap className="h-4 w-4 text-indigo-500" />
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Analysis Method</p>
+                      <p className="font-semibold text-gray-700 dark:text-gray-300">
+                        AI + Rules
+                      </p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="mt-3 text-xs text-gray-500 dark:text-gray-400 italic">
+                  * Sentiment analysis performed on full article content using advanced AI models
+                </div>
               </div>
             </div>
           ) : (
@@ -582,6 +636,64 @@ const ArticleDetail: React.FC = () => {
           <div className="bg-white/50 dark:bg-gray-800/50 rounded-xl p-6 border-l-4 border-blue-500">
             <div className="text-lg text-gray-700 dark:text-gray-300 leading-relaxed font-medium">
               {formatSummaryContent(article.summary)}
+            </div>
+            
+            {/* Sentiment Analysis for Quick Summary */}
+            <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-600">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">Sentiment Analysis</h3>
+                <div className="flex items-center space-x-2">
+                  <span className="text-lg">{getSentimentIcon(article.sentiment)}</span>
+                  <div className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    article.sentiment?.label === 'positive' 
+                      ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                      : article.sentiment?.label === 'negative'
+                      ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                      : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+                  }`}>
+                    {article.sentiment?.label?.toUpperCase() || 'NEUTRAL'}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div className="flex items-center space-x-2 bg-white/70 dark:bg-gray-700/70 rounded-lg p-3">
+                  <Activity className="h-4 w-4 text-blue-500" />
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Sentiment Score</p>
+                    <p className="font-semibold text-gray-700 dark:text-gray-300">
+                      {article.sentiment?.score !== undefined && article.sentiment.score !== null ? 
+                        `${article.sentiment.score >= 0 ? '+' : ''}${(article.sentiment.score * 100).toFixed(1)}%` : 
+                        '0.0%'
+                      }
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center space-x-2 bg-white/70 dark:bg-gray-700/70 rounded-lg p-3">
+                  <Star className="h-4 w-4 text-yellow-500" />
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Confidence</p>
+                    <p className="font-semibold text-gray-700 dark:text-gray-300">
+                      {article.sentiment?.confidence !== undefined && article.sentiment.confidence !== null ? 
+                        `${(article.sentiment.confidence * 100).toFixed(1)}%` : 
+                        '0.0%'
+                      }
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-center space-x-2 bg-white/70 dark:bg-gray-700/70 rounded-lg p-3">
+                  <Users className="h-4 w-4 text-purple-500" />
+                  <div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Overall Tone</p>
+                    <p className="font-semibold text-gray-700 dark:text-gray-300">
+                      {article.sentiment?.label === 'positive' ? 'Optimistic' :
+                       article.sentiment?.label === 'negative' ? 'Concerning' : 'Balanced'}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

@@ -56,19 +56,19 @@
   }
 
   .first-paragraph {
-    @apply first-letter:text-5xl first-letter:font-bold first-letter:text-blue-600 dark:first-letter:text-blue-400 first-letter:float-left first-letter:mr-3 first-letter:mt-1 first-letter:leading-none first-letter:drop-shadow-sm;
+    @apply first-letter:text-4xl sm:first-letter:text-5xl first-letter:font-bold first-letter:text-blue-600 dark:first-letter:text-blue-400 first-letter:float-left first-letter:mr-2 sm:first-letter:mr-3 first-letter:mt-1 first-letter:leading-none first-letter:drop-shadow-sm;
   }
 
   .metadata-card {
-    @apply bg-gradient-to-r from-gray-50 to-blue-50 dark:from-gray-800 dark:to-gray-700 rounded-xl p-4 border-l-4 border-blue-500 shadow-sm;
+    @apply bg-gradient-to-r from-gray-50 to-blue-50 dark:from-gray-800 dark:to-gray-700 rounded-xl p-3 sm:p-4 border-l-4 border-blue-500 shadow-sm;
   }
 
   .link-card {
-    @apply bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl p-4 border border-blue-200 dark:border-blue-700 hover:shadow-md transition-all duration-300;
+    @apply bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl p-3 sm:p-4 border border-blue-200 dark:border-blue-700 hover:shadow-md transition-all duration-300;
   }
 
   .note-card {
-    @apply bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 rounded-xl p-4 border-l-4 border-yellow-400 shadow-sm;
+    @apply bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-900/20 dark:to-orange-900/20 rounded-xl p-3 sm:p-4 border-l-4 border-yellow-400 shadow-sm;
   }
 }
 

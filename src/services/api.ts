@@ -70,6 +70,20 @@ export const newsAPI = {
         style: 'comprehensive' // Request comprehensive analysis
       });
       
+      // Check if the response indicates an error
+      if (response.data.success === false) {
+        // Handle error response
+        console.log('API Error:', response.data);
+        
+        // Return the error information in a format the UI can use
+        return {
+          error: response.data.error,
+          is_paywall: response.data.is_paywall,
+          processing_time: response.data.processing_time,
+          success: false
+        };
+      }
+      
       // Return the full response data which may include sentiment
       if (response.data.sentiment) {
         return {
@@ -77,7 +91,8 @@ export const newsAPI = {
           sentiment: response.data.sentiment,
           processing_time: response.data.processing_time,
           content_length: response.data.content_length,
-          summary_length: response.data.summary_length
+          summary_length: response.data.summary_length,
+          success: true
         };
       }
       
@@ -85,6 +100,17 @@ export const newsAPI = {
       return response.data.summary;
     } catch (error) {
       console.error('Error summarizing article:', error);
+      
+      // If we get a response with error data, return it
+      if (error.response && error.response.data) {
+        return {
+          error: error.response.data.error || 'Failed to summarize article',
+          is_paywall: error.response.data.is_paywall,
+          success: false
+        };
+      }
+      
+      // Otherwise throw the error to be handled by the component
       throw error;
     }
   },

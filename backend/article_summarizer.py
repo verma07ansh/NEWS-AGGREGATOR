@@ -146,16 +146,140 @@ class ArticleSummarizer:
         if not self.content_extraction_available:
             logger.error("No content extraction method available")
             return None
-            
+        
+        content = None
+        
         # Try newspaper3k first (preferred method)
         if NEWSPAPER_AVAILABLE:
-            return self._extract_with_newspaper(url)
+            content = self._extract_with_newspaper(url)
+            
+        # Fallback to BeautifulSoup if newspaper3k fails
+        if not content and BEAUTIFULSOUP_AVAILABLE:
+            content = self._extract_with_beautifulsoup(url)
+            
+        # If we still don't have content, try to extract from the URL's metadata
+        if not content:
+            content = self._extract_from_metadata(url)
+            
+        return content
         
-        # Fallback to BeautifulSoup
-        elif BEAUTIFULSOUP_AVAILABLE:
-            return self._extract_with_beautifulsoup(url)
+    def _extract_from_metadata(self, url: str) -> Optional[str]:
+        """
+        Extract content from article metadata when direct extraction fails
         
-        return None
+        Args:
+            url: Article URL
+            
+        Returns:
+            Extracted content or None if extraction fails
+        """
+        try:
+            logger.info(f"Attempting to extract metadata from URL: {url}")
+            
+            # Try to find the article in our cache first
+            try:
+                import sys
+                import os
+                sys.path.append(os.path.dirname(__file__))
+                from app import articles_cache
+                
+                # Find article by URL
+                for article in articles_cache:
+                    if article.get('url') == url:
+                        logger.info(f"Found article in cache: {article.get('title')}")
+                        
+                        # Construct content from available metadata
+                        content_parts = []
+                        
+                        # Add title
+                        if article.get('title'):
+                            content_parts.append(f"# {article['title']}")
+                        
+                        # Add summary/description
+                        if article.get('summary'):
+                            content_parts.append(article['summary'])
+                        
+                        # Add content if available
+                        if article.get('content'):
+                            content_parts.append(article['content'])
+                        
+                        # Add author
+                        if article.get('author') and article['author'] != 'Unknown':
+                            content_parts.append(f"Author: {article['author']}")
+                        
+                        # Add source
+                        if article.get('source') and article['source'] != 'Unknown':
+                            content_parts.append(f"Source: {article['source']}")
+                        
+                        # Combine all parts
+                        combined_content = "\n\n".join(content_parts)
+                        
+                        if len(combined_content) > 200:  # Minimum content length
+                            logger.info(f"Successfully constructed content from cache: {len(combined_content)} chars")
+                            return combined_content
+            except Exception as cache_error:
+                logger.warning(f"Error accessing cache: {cache_error}")
+            
+            # If we can't get from cache, make a simple request to get metadata
+            if NEWSPAPER_AVAILABLE:
+                from newspaper import Article
+                article = Article(url)
+                # Only download and parse metadata (no full download)
+                article.download()
+                article.parse()
+                
+                # Get metadata
+                title = article.title
+                text = article.text
+                
+                # If we have some content, return it
+                if title and text and len(text) > 100:
+                    logger.info(f"Extracted metadata content: {len(text)} chars")
+                    return f"# {title}\n\n{text}"
+            
+            # Last resort: try to get Open Graph metadata
+            if BEAUTIFULSOUP_AVAILABLE:
+                import requests
+                from bs4 import BeautifulSoup
+                
+                headers = {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                }
+                response = requests.get(url, headers=headers, timeout=10)
+                soup = BeautifulSoup(response.content, 'html.parser')
+                
+                # Extract Open Graph metadata
+                og_title = soup.find("meta", property="og:title")
+                og_description = soup.find("meta", property="og:description")
+                
+                if og_title or og_description:
+                    content_parts = []
+                    
+                    if og_title and og_title.get("content"):
+                        content_parts.append(f"# {og_title['content']}")
+                    
+                    if og_description and og_description.get("content"):
+                        content_parts.append(og_description["content"])
+                    
+                    # Try to get the first few paragraphs
+                    paragraphs = soup.find_all("p")[:5]  # Get first 5 paragraphs
+                    for p in paragraphs:
+                        text = p.get_text(strip=True)
+                        if len(text) > 50:  # Only include substantial paragraphs
+                            content_parts.append(text)
+                    
+                    combined_content = "\n\n".join(content_parts)
+                    
+                    if len(combined_content) > 200:  # Minimum content length
+                        logger.info(f"Extracted Open Graph metadata: {len(combined_content)} chars")
+                        return combined_content
+            
+            logger.warning(f"Failed to extract any content from {url}")
+            return None
+            
+        except Exception as e:
+            logger.error(f"Error extracting metadata from {url}: {e}")
+            return None
     
     def _extract_with_newspaper(self, url: str) -> Optional[str]:
         """Extract content using newspaper3k"""
@@ -597,11 +721,82 @@ class ArticleSummarizer:
             content = self.extract_article_content(url)
             
             if not content:
+                # Try to get article from cache to provide a basic summary
+                try:
+                    import sys
+                    import os
+                    sys.path.append(os.path.dirname(__file__))
+                    from app import articles_cache
+                    
+                    # Find article by URL
+                    for article in articles_cache:
+                        if article.get('url') == url:
+                            logger.info(f"Found article in cache: {article.get('title')}")
+                            
+                            # Use the article's existing summary if available
+                            if article.get('summary') and len(article.get('summary', '')) > 50:
+                                return {
+                                    "success": True,
+                                    "summary": f"From article metadata: {article['summary']}",
+                                    "sentiment": article.get('sentiment', {"label": "neutral", "score": 0, "confidence": 0.1}),
+                                    "url": url,
+                                    "content_length": len(article.get('content', '')),
+                                    "summary_length": len(article.get('summary', '')),
+                                    "processing_time": round(time.time() - start_time, 2),
+                                    "note": "This summary was generated from article metadata as full content extraction failed."
+                                }
+                except Exception as cache_error:
+                    logger.warning(f"Error accessing cache: {cache_error}")
+                
+                # If we can't get from cache either, return error
+                # Try to determine if it's a paywall or just insufficient content
+                is_paywall = False
+                try:
+                    # Check for common paywall indicators
+                    import requests
+                    from bs4 import BeautifulSoup
+                    
+                    headers = {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                    }
+                    response = requests.get(url, headers=headers, timeout=10)
+                    soup = BeautifulSoup(response.content, 'html.parser')
+                    
+                    # Common paywall indicators in text
+                    paywall_phrases = [
+                        'subscribe to continue', 'subscription required', 'premium content',
+                        'subscribe now', 'premium article', 'for subscribers only',
+                        'sign up to read', 'premium access', 'paid subscribers',
+                        'create an account', 'register to continue', 'login to continue',
+                        'members only', 'premium membership', 'paid content'
+                    ]
+                    
+                    page_text = soup.get_text().lower()
+                    for phrase in paywall_phrases:
+                        if phrase in page_text:
+                            is_paywall = True
+                            break
+                            
+                    # Check for login/subscription forms
+                    paywall_elements = soup.select('form.paywall, div.paywall, .subscription-required, .premium-content, .login-required')
+                    if paywall_elements:
+                        is_paywall = True
+                        
+                except Exception as e:
+                    logger.warning(f"Error checking for paywall: {e}")
+                
+                error_message = "Could not extract article content. "
+                if is_paywall:
+                    error_message += "This article is behind a paywall and requires a subscription to access."
+                else:
+                    error_message += "The article may have insufficient content or uses anti-scraping measures."
+                
                 return {
                     "success": False,
                     "summary": "Unable to summarize this article.",
-                    "error": "Could not extract article content. The article may be behind a paywall or have insufficient content.",
+                    "error": error_message,
                     "url": url,
+                    "is_paywall": is_paywall,
                     "processing_time": round(time.time() - start_time, 2)
                 }
             
@@ -609,6 +804,33 @@ class ArticleSummarizer:
             summary = self.summarize_text(content)
             
             if not summary:
+                # If AI summarization fails, use a simple extractive approach
+                try:
+                    # Extract first 2-3 sentences as a basic summary
+                    import re
+                    sentences = re.split(r'[.!?]+', content)
+                    sentences = [s.strip() for s in sentences if len(s.strip()) > 20]
+                    
+                    if sentences:
+                        basic_summary = '. '.join(sentences[:3]) + '.'
+                        logger.info(f"Using basic extractive summary: {len(basic_summary)} chars")
+                        
+                        # Step 3: Analyze sentiment of the content
+                        sentiment = self.analyze_sentiment(content)
+                        
+                        return {
+                            "success": True,
+                            "summary": basic_summary,
+                            "sentiment": sentiment,
+                            "url": url,
+                            "content_length": len(content),
+                            "summary_length": len(basic_summary),
+                            "processing_time": round(time.time() - start_time, 2),
+                            "note": "This is a basic extractive summary as AI summarization failed."
+                        }
+                except Exception as extract_error:
+                    logger.warning(f"Error creating basic summary: {extract_error}")
+                
                 return {
                     "success": False,
                     "summary": "Unable to summarize this article.",

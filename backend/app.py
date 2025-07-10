@@ -575,7 +575,7 @@ def summarize_article_endpoint(article_id):
                 'success': False,
                 'error': 'Summarization functionality not available. Install required dependencies: pip install newspaper3k transformers',
                 'summary': 'Unable to summarize this article.'
-            }), 500
+            })
         
         # Find the article in cache
         if not articles_cache:
@@ -583,7 +583,7 @@ def summarize_article_endpoint(article_id):
                 'success': False,
                 'error': 'No articles in cache',
                 'summary': 'Unable to summarize this article.'
-            }), 404
+            })
         
         article = next((a for a in articles_cache if a['id'] == article_id), None)
         if not article:
@@ -591,7 +591,7 @@ def summarize_article_endpoint(article_id):
                 'success': False,
                 'error': 'Article not found',
                 'summary': 'Unable to summarize this article.'
-            }), 404
+            })
         
         # Get the article URL
         article_url = article.get('url')
@@ -600,7 +600,7 @@ def summarize_article_endpoint(article_id):
                 'success': False,
                 'error': 'Article URL not available',
                 'summary': 'Unable to summarize this article.'
-            }), 400
+            })
         
         logger.info(f"Generating summary for article: {article_id}")
         logger.info(f"Article URL: {article_url}")
@@ -634,12 +634,20 @@ def summarize_article_endpoint(article_id):
             return jsonify(response_data)
         else:
             logger.error(f"Failed to generate summary for article {article_id}: {summary_result.get('error', 'Unknown error')}")
-            return jsonify({
+            
+            # Return a 200 status code with error information
+            response_data = {
                 'success': False,
                 'error': summary_result.get('error', 'Summarization failed'),
                 'summary': summary_result['summary'],  # This will be "Unable to summarize this article."
                 'processing_time': summary_result['processing_time']
-            }), 500
+            }
+            
+            # Include paywall information if available
+            if 'is_paywall' in summary_result:
+                response_data['is_paywall'] = summary_result['is_paywall']
+                
+            return jsonify(response_data)
         
     except Exception as e:
         logger.error(f"Error summarizing article {article_id}: {e}")
@@ -647,7 +655,7 @@ def summarize_article_endpoint(article_id):
             'success': False,
             'error': f'Failed to summarize article: {str(e)}',
             'summary': 'Unable to summarize this article.'
-        }), 500
+        })
 
 @app.route('/api/warmup', methods=['POST'])
 def warmup_models():
